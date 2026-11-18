@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "mainDocumentId": "design",
+  "boards": [
+    {
+      "id": "d4103521-2844-497a-9f9b-e8b31e00cf3c",
+      "name": "Arrows of the Realm"
+    }
+  ],
+  "documents": [
+    {
+      "id": "design",
+      "title": "Arrows of the Realm — 游戏设计文档"
+    }
+  ]
+}

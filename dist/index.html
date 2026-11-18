@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Arrows of the Realm</title>
+  <script type="module" crossorigin src="./assets/index-qaZPee24.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DUFq1Ko0.css">
+</head>
+<body>
+  <div id="app">
+    <div id="game-container"></div>
+
+    <!-- In-game HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="wall-wrap panel">
+          <div class="hud-label">GATE</div>
+          <div class="bar"><div id="wall-fill" class="fill wall"></div></div>
+          <div id="wall-text" class="bar-text">300/300</div>
+        </div>
+        <div id="hud-wave" class="panel">WAVE 1</div>
+        <div class="hud-stats panel">
+          <span id="hud-score">SCORE 0</span>
+          <span id="hud-gold">&#9679; 0</span>
+          <span id="hud-combo" class="combo">x1.0</span>
+          <span id="hud-wind">WIND 0</span>
+        </div>
+      </div>
+
+      <div class="hud-bottom">
+        <div id="arrow-bar" class="arrow-bar"></div>
+        <div class="mana-wrap panel">
+          <div class="hud-label">MANA</div>
+          <div class="bar"><div id="mana-fill" class="fill mana"></div></div>
+          <div id="mana-text" class="bar-text">100/100</div>
+        </div>
+        <div id="ability-bar" class="ability-bar"></div>
+      </div>
+    </div>
+
+    <!-- Boot / loading -->
+    <div id="screen-boot" class="screen active">
+      <div class="center-panel">
+        <h1 class="title">ARROWS OF THE REALM</h1>
+        <p id="boot-status">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Main menu -->
+    <div id="screen-menu" class="screen">
+      <div class="menu-hero">
+        <h1 class="title">ARROWS <span class="gold">OF THE</span> REALM</h1>
+        <p class="subtitle">Defend the gate. Command the storm.</p>
+        <div class="menu-buttons">
+          <button class="btn btn-primary" id="btn-campaign" data-testid="btn-campaign">&#9876; Campaign</button>
+          <button class="btn" id="btn-endless" data-testid="btn-endless">&#8734; Endless</button>
+          <button class="btn" id="btn-armory" data-testid="btn-armory">&#128737; Armory</button>
+          <button class="btn" data-testid="btn-signin" id="btn-signin" style="display:none">Sign in</button>
+        </div>
+        <div class="menu-stats" id="menu-stats"></div>
+        <p class="hint">Drag on the field to aim. Release to loose. Arrows arc with gravity &amp; wind.</p>
+      </div>
+    </div>
+
+    <!-- Level select -->
+    <div id="screen-levels" class="screen">
+      <div class="panel-page">
+        <h2>Choose Your Battle</h2>
+        <div id="level-grid" class="level-grid"></div>
+        <div class="page-actions">
+          <button class="btn" id="btn-levels-back" data-testid="btn-levels-back">&#8592; Back</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Armory / upgrades -->
+    <div id="screen-armory" class="screen">
+      <div class="panel-page">
+        <div class="armory-head">
+          <h2>&#128737; Armory</h2>
+          <div class="gold-pill" id="armory-gold">&#9679; 0</div>
+        </div>
+        <div class="armory-cols">
+          <div class="armory-col">
+            <h3>General</h3>
+            <div id="upgrade-list" class="upgrade-list"></div>
+          </div>
+          <div class="armory-col">
+            <h3>Arrow Mastery</h3>
+            <div id="arrow-upgrade-list" class="upgrade-list"></div>
+          </div>
+        </div>
+        <div class="page-actions">
+          <button class="btn" id="armory-back" data-testid="btn-armory-back">&#8592; Back</button>
+          <button class="btn btn-primary" id="armory-continue" data-testid="btn-armory-continue">Continue &#8594;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Perk draft -->
+    <div id="screen-perks" class="screen">
+      <div class="panel-page">
+        <h2>Choose a Boon</h2>
+        <p class="subtitle">Your choice lasts for this whole run.</p>
+        <div id="perk-list" class="perk-list"></div>
+      </div>
+    </div>
+
+    <!-- Game over / result -->
+    <div id="screen-gameover" class="screen">
+      <div class="panel-page result">
+        <h2 id="result-title">Victory!</h2>
+        <div class="result-stats" id="result-stats"></div>
+        <div class="page-actions" id="result-actions"></div>
+      </div>
+    </div>
+
+    <!-- Pause -->
+    <div id="screen-pause" class="screen">
+      <div class="center-panel">
+        <h2>Paused</h2>
+        <div class="menu-buttons">
+          <button class="btn btn-primary" id="btn-resume" data-testid="btn-resume">Resume</button>
+          <button class="btn" id="btn-quit" data-testid="btn-quit">Quit to Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transient feedback -->
+    <div id="banner" class="hidden"><div id="banner-title"></div><div id="banner-sub"></div></div>
+    <div id="toast" class="hidden"></div>
+  </div>
+</body>
+</html>
