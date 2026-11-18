@@ -3,6 +3,7 @@ import {
   ARROWS,
   PERKS,
   REGIONS,
+  STRUCTURES,
   UPGRADES,
   abilityById,
   arrowById,
@@ -19,6 +20,7 @@ import type {
   ArrowId,
   HudState,
   PerkId,
+  StructureId,
   UpgradeId
 } from "../game/types";
 
@@ -37,6 +39,7 @@ export interface UiHandlers {
   onNext(): void;
   onSelectArrow(id: ArrowId): void;
   onUseAbility(id: AbilityId): void;
+  onSelectBuild(id: StructureId): void;
 }
 
 const ARROW_GLYPH: Record<ArrowId, string> = {
@@ -77,7 +80,23 @@ const screens = [
 export function init(h: UiHandlers): void {
   handlers = h;
   buildArrowBar();
+  buildBuildBar();
   bindStaticButtons();
+}
+
+function buildBuildBar(): void {
+  const bar = el("build-bar");
+  bar.innerHTML = "";
+  STRUCTURES.forEach((def) => {
+    const b = document.createElement("button");
+    b.className = "build-btn";
+    b.dataset.structure = def.id;
+    b.setAttribute("data-testid", "build-" + def.id);
+    b.title = `${def.name} — ${def.desc}`;
+    b.innerHTML = `<span class="glyph">${def.glyph}</span><span class="cost">${def.cost}</span>`;
+    b.addEventListener("click", () => handlers.onSelectBuild(def.id));
+    bar.appendChild(b);
+  });
 }
 
 function bindStaticButtons(): void {
@@ -321,6 +340,15 @@ export function updateHud(state: HudState): void {
     b.classList.toggle("locked", !info.unlocked);
   });
 
+  // build bar
+  document.querySelectorAll<HTMLElement>(".build-btn").forEach((b) => {
+    const id = b.dataset.structure as StructureId;
+    const info = state.structures.find((s) => s.id === id);
+    if (!info) return;
+    b.classList.toggle("unaffordable", !info.affordable);
+    b.classList.toggle("building", state.buildMode === id);
+  });
+
   // abilities
   buildAbilityBar(state.abilities);
   document.querySelectorAll<HTMLElement>(".ability-btn").forEach((b) => {
@@ -331,14 +359,19 @@ export function updateHud(state: HudState): void {
     const cd = b.querySelector(".cooldown");
     if (info.ready) {
       cd?.remove();
+      b.classList.add("ready");
     } else {
+      b.classList.remove("ready");
       let c = b.querySelector(".cooldown") as HTMLElement | null;
       if (!c) {
         c = document.createElement("div");
         c.className = "cooldown";
+        c.innerHTML = `<div class="cd-num"></div><div class="cd-bar"><div class="cd-fill"></div></div>`;
         b.appendChild(c);
       }
-      c.textContent = Math.ceil(info.remaining) + "s";
+      c.querySelector(".cd-num")!.textContent = Math.ceil(info.remaining) + "s";
+      const fill = c.querySelector(".cd-fill") as HTMLElement;
+      fill.style.width = Math.max(0, Math.min(100, (1 - info.remaining / info.cooldown) * 100)) + "%";
     }
   });
 }

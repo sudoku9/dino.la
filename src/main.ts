@@ -137,6 +137,9 @@ ui.init({
   },
   onUseAbility(id) {
     scene?.useAbility(id);
+  },
+  onSelectBuild(id) {
+    scene?.selectBuild(id);
   }
 });
 
@@ -176,30 +179,24 @@ bus.on("levelEnd", (payload) => {
   mode = r.victory ? "victory" : "defeat";
 });
 
-// ---------- boot ----------
-async function boot(): Promise<void> {
-  const bootStatus = document.getElementById("boot-status")!;
-  let api: OhMyGame | null = null;
-  try {
-    api = await init({ allowLocalhost: true });
-  } catch (err) {
-    console.error("SDK init failed", err);
-    bootStatus.textContent = "Could not reach game services. Playing locally.";
-  }
-  if (api) {
-    gameApi = api;
-    setGame(api);
-  }
+// ---------- boot (non-blocking) ----------
+let phaserGame: Phaser.Game | null = null;
 
-  const loaded = await loadMeta();
-  meta = {
-    ...defaultMeta(),
-    ...(loaded ?? {}),
-    upgrades: loaded?.upgrades ?? {},
-    arrowLevels: loaded?.arrowLevels ?? {}
-  };
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    p.then((v) => {
+      clearTimeout(timer);
+      resolve(v);
+    }).catch(() => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+  });
+}
 
-  const phaserGame = new Phaser.Game({
+function startGame(): void {
+  const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: "game-container",
     width: 1280,
@@ -211,12 +208,44 @@ async function boot(): Promise<void> {
     },
     scene: [GameScene]
   });
+  phaserGame = game;
 
-  phaserGame.events.once(Phaser.Core.Events.READY, () => {
-    scene = phaserGame.scene.getScene("GameScene") as GameScene;
+  game.events.once(Phaser.Core.Events.READY, () => {
+    scene = game.scene.getScene("GameScene") as GameScene;
   });
 
+  // Show the menu right away so the game never blocks on game services.
   renderMenu();
+}
+
+async function initSdk(): Promise<void> {
+  try {
+    const host = location.hostname;
+    const isLocal =
+      host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+    const api = await withTimeout(init(isLocal ? { allowLocalhost: true } : {}), 5000);
+    if (!api) return;
+    gameApi = api;
+    setGame(api);
+
+    const loaded = await withTimeout(loadMeta(), 3000);
+    if (loaded) {
+      meta = {
+        ...defaultMeta(),
+        ...loaded,
+        upgrades: loaded.upgrades ?? {},
+        arrowLevels: loaded.arrowLevels ?? {}
+      };
+    }
+    renderMenu();
+  } catch (err) {
+    console.warn("Game services unavailable; playing locally.", err);
+  }
+}
+
+async function boot(): Promise<void> {
+  startGame();
+  void initSdk();
 }
 
 // test-only bridge for the playtest harness (does not affect gameplay)

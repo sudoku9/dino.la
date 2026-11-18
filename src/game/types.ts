@@ -28,6 +28,8 @@ export type UpgradeId =
   | "manaRegen"
   | "goldGain";
 
+export type StructureId = "barricade" | "ballista" | "frostTrap";
+
 export type PerkId =
   | "sharpened"
   | "critMastery"
@@ -134,14 +136,39 @@ export interface HitDef {
   chain?: number;
 }
 
-export interface MonsterRuntime {
-  def: MonsterDef;
+export interface StructureDef {
+  id: StructureId;
+  name: string;
+  cost: number;
+  desc: string;
+  hp: number;
+  color: number;
+  glyph: string;
+}
+
+export interface StructureRuntime {
+  def: StructureDef;
+  lane: number;
   x: number;
   y: number;
   hp: number;
   maxHp: number;
+  cooldown: number;
+  container: Phaser.GameObjects.Container;
+  hpBar: Phaser.GameObjects.Graphics;
+  dead: boolean;
+}
+
+export interface MonsterRuntime {
+  def: MonsterDef;
+  x: number;
+  y: number;
+  lane: number;
+  hp: number;
+  maxHp: number;
   attacking: boolean;
   attackTimer: number;
+  targetBarricade: StructureRuntime | null;
   effects: StatusEffects;
   container: Phaser.GameObjects.Container;
   hpBar: Phaser.GameObjects.Graphics;
@@ -197,6 +224,14 @@ export interface HudAbility {
   unlocked: boolean;
 }
 
+export interface HudStructure {
+  id: StructureId;
+  name: string;
+  cost: number;
+  glyph: string;
+  affordable: boolean;
+}
+
 export interface HudState {
   wallHp: number;
   wallMax: number;
@@ -212,5 +247,7 @@ export interface HudState {
   wind: number;
   arrows: HudArrow[];
   abilities: HudAbility[];
+  structures: HudStructure[];
+  buildMode: StructureId | null;
   paused: boolean;
 }

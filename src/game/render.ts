@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { PALETTE } from "./constants";
-import type { MonsterId } from "./types";
+import type { MonsterId, StructureId } from "./types";
 
 // ---------- color helpers ----------
 function lerpColor(a: number, b: number, t: number): number {
@@ -593,4 +593,58 @@ export function placeMonster(
   y: number
 ): void {
   visual.container.setPosition(x, y);
+}
+
+// ---------- defensive structures ----------
+export function createStructureVisual(
+  scene: Phaser.Scene,
+  id: StructureId
+): Phaser.GameObjects.Container {
+  const c = scene.add.container(0, 0);
+  c.setDepth(3);
+  const g = scene.add.graphics();
+
+  if (id === "barricade") {
+    // wooden log base
+    g.fillStyle(0x6b4a2e, 1);
+    g.fillRoundedRect(-26, -10, 52, 10, 3);
+    g.fillStyle(0x8a6038, 1);
+    g.fillRoundedRect(-24, -12, 48, 6, 2);
+    // spikes pointing right (toward enemies)
+    for (let i = 0; i < 4; i++) {
+      const sx = -18 + i * 13;
+      g.fillStyle(i % 2 === 0 ? 0xb9c0ca : 0x8a93a3, 1);
+      g.fillTriangle(sx, -10, sx + 13, -10, sx + 6, -26);
+    }
+  } else if (id === "ballista") {
+    // base
+    g.fillStyle(0x5b6470, 1);
+    g.fillRoundedRect(-16, -6, 32, 8, 2);
+    g.fillStyle(0x3d434e, 1);
+    g.fillRoundedRect(-12, -14, 8, 10, 2);
+    // bow arms
+    g.lineStyle(3, 0x6b4a2e, 1);
+    g.arc(0, -12, 12, Phaser.Math.DegToRad(-120), Phaser.Math.DegToRad(120));
+    g.lineStyle(1, 0xe8d9b0, 1);
+    g.lineBetween(-12 * Math.cos(Phaser.Math.DegToRad(30)), -12 - 12 * Math.sin(Phaser.Math.DegToRad(30)), 12 * Math.cos(Phaser.Math.DegToRad(30)), -12 - 12 * Math.sin(Phaser.Math.DegToRad(30)));
+    // bolt
+    g.lineStyle(3, 0x8a6038, 1);
+    g.lineBetween(0, -12, 18, -12);
+    g.fillStyle(0xd9d9d9, 1);
+    g.fillTriangle(18, -15, 18, -9, 24, -12);
+  } else {
+    // frost trap: ice crystal cluster
+    g.fillStyle(0x9be7ff, 0.5);
+    g.fillEllipse(0, -2, 44, 14);
+    g.fillStyle(0x7fd8e8, 1);
+    g.fillTriangle(-16, -2, -6, -2, -11, -26);
+    g.fillTriangle(-4, -2, 8, -2, 2, -32);
+    g.fillTriangle(8, -2, 20, -2, 14, -22);
+    g.fillStyle(0xe8fbff, 1);
+    g.fillTriangle(-11, -20, -8, -12, -5, -20);
+    g.fillTriangle(2, -26, 5, -18, 8, -26);
+  }
+
+  c.add(g);
+  return c;
 }

@@ -308,15 +308,86 @@ h3 {
   position: absolute;
   inset: 0;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(10, 8, 20, 0.78);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  gap: 2px;
+  overflow: hidden;
+}
+.ability-btn .cd-num {
+  font-size: 1.15rem;
+  font-weight: bold;
   color: var(--gold-light);
+  text-shadow: 0 1px 2px #000;
+}
+.ability-btn .cd-bar {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 3px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ability-btn .cd-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--gold);
+}
+.ability-btn.ready {
+  border-color: var(--gold);
+  animation: readyPulse 1.2s ease-in-out infinite;
+}
+@keyframes readyPulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(240, 180, 41, 0.5); }
+  50% { box-shadow: 0 0 22px rgba(240, 180, 41, 0.95); }
 }
 .mana-wrap {
   pointer-events: none;
+}
+
+/* build bar (placeable defenses) */
+.build-bar {
+  position: absolute;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+  z-index: 21;
+}
+.build-btn {
+  position: relative;
+  width: 64px;
+  height: 60px;
+  border-radius: 12px;
+  border: 2px solid var(--panel-border);
+  background: linear-gradient(180deg, #3a3350, #241d38);
+  color: var(--parchment);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+.build-btn:active { transform: scale(0.94); }
+.build-btn .glyph { font-size: 24px; line-height: 1; }
+.build-btn .cost {
+  font-family: Georgia, serif;
+  font-size: 0.85rem;
+  color: var(--gold-light);
+}
+.build-btn.unaffordable { opacity: 0.4; }
+.build-btn.building {
+  border-color: var(--gold);
+  box-shadow: 0 0 16px rgba(240, 180, 41, 0.7);
+  transform: translateY(-3px);
 }
 
 /* ---------- level grid ---------- */

@@ -1,18 +1,21 @@
 import Phaser from "phaser";
 import { PALETTE, TUNING } from "../game/constants";
 import {
+  STRUCTURES,
   abilityById,
   arrowById,
   generateEndlessWave,
   generateWaves,
   levelName,
   monsterById,
+  structureById,
   unlockedAbilities,
   unlockedArrows
 } from "../game/data";
 import { bus } from "../game/events";
 import {
   createMonsterVisual,
+  createStructureVisual,
   drawBackground,
   drawCastle,
   drawGeneral,
@@ -38,9 +41,12 @@ import type {
   HudAbility,
   HudArrow,
   HudState,
+  HudStructure,
   MonsterRuntime,
   PerkId,
-  Spawn
+  Spawn,
+  StructureId,
+  StructureRuntime
 } from "../game/types";
 
 const ARROW_KEYS = ["1", "2", "3", "4", "5", "6"];
@@ -104,6 +110,9 @@ export class GameScene extends Phaser.Scene {
   private pendingVictory = false;
   private gameTime = 0;
   private cleanup: { p: Phaser.GameObjects.Particles.ParticleEmitter; ttl: number }[] = [];
+  private structures: StructureRuntime[] = [];
+  private buildMode: StructureId | null = null;
+  private ghost: Phaser.GameObjects.Container | null = null;
 
   private flameWalls: { x: number; y0: number; y1: number; ttl: number; g: Phaser.GameObjects.Graphics }[] = [];
   private stormArrows: { x: number; y: number; t: number }[] = [];
@@ -173,17 +182,19 @@ export class GameScene extends Phaser.Scene {
     this.castleLayer = drawCastle(this, { w: this.w, h: this.h });
     this.general = drawGeneral(this, 62, this.wallTop, Math.max(0.9, this.h / 720));
     for (const m of this.monsters) {
-      m.y = m.def.kind === "flying" ? this.gy - 130 : this.gy;
+      m.y = m.def.kind === "flying" ? this.gy - 140 : this.laneY(m.lane);
       m.container.y = m.y;
+    }
+    for (const s of this.structures) {
+      s.y = this.laneY(s.lane);
+      s.container.y = s.y;
     }
     this.pushHud();
   };
 
   private bindInput(): void {
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.onPointerDown(p));
-    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
-      if (this.aiming) this.onPointerMove(p);
-    });
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => this.onPointerMove(p));
     this.input.on("pointerup", (p: Phaser.Input.Pointer) => this.onPointerUp(p));
 
     this.input.keyboard?.on("keydown", (ev: KeyboardEvent) => this.onKey(ev));
@@ -196,6 +207,10 @@ export class GameScene extends Phaser.Scene {
       const unlocked = this.unlockedArrows();
       const id = unlocked[idx];
       if (id) this.selectArrow(id);
+      return;
+    }
+    if (key === "escape") {
+      this.setBuildMode(null);
       return;
     }
     if (key === "q") this.useAbility(this.run.abilities[0]);
@@ -252,7 +267,10 @@ export class GameScene extends Phaser.Scene {
       hidden: (typeof document !== "undefined" && document.hidden) || false,
       gameTime: Math.round(this.gameTime * 100) / 100,
       prepTimer: Math.round(this.prepTimer * 100) / 100,
-      interWave: Math.round(this.interWaveTimer * 100) / 100
+      interWave: Math.round(this.interWaveTimer * 100) / 100,
+      gold: this.run.gold,
+      structures: this.structures.length,
+      buildMode: this.buildMode
     };
   }
 
@@ -318,11 +336,16 @@ export class GameScene extends Phaser.Scene {
     this.waves.push(generateEndlessWave(this.waveIndex));
   }
 
+  private laneY(lane: number): number {
+    return this.gy - 64 + lane * 32;
+  }
+
   private spawnMonster(id: MonsterRuntime["def"]["id"]): void {
     const def = monsterById(id);
     const visual = createMonsterVisual(this, id, Math.floor(Math.random() * 1000));
     const x = this.w + 50;
-    const y = def.kind === "flying" ? this.gy - 130 - (id === "boss" ? 30 : 0) : this.gy;
+    const lane = def.kind === "flying" ? -1 : Math.floor(Math.random() * 3);
+    const y = def.kind === "flying" ? this.gy - 140 : this.laneY(lane);
     placeMonster(visual, x, y);
     const hpBar = this.add.graphics();
     hpBar.setDepth(4);
@@ -332,10 +355,12 @@ export class GameScene extends Phaser.Scene {
       def,
       x,
       y,
+      lane,
       hp: def.hp * (id === "boss" ? 1 + Math.floor(this.run.level / 5) * 0.5 : 1),
       maxHp: 0,
       attacking: false,
       attackTimer: 0,
+      targetBarricade: null,
       effects: { burnT: 0, burnDps: 0, slowT: 0, slowF: 0, freezeT: 0 },
       container: visual.container,
       hpBar,
@@ -409,6 +434,7 @@ export class GameScene extends Phaser.Scene {
 
     this.updateArrows(dt);
     this.updateMonsters(dt);
+    this.updateStructures(dt);
     this.updateAimPreview();
     this.updateFlameWalls(dt);
     this.updateStormArrows(dt);
@@ -424,6 +450,14 @@ export class GameScene extends Phaser.Scene {
   // ---------------- aiming ----------------
   private onPointerDown(p: Phaser.Input.Pointer): void {
     if (this.paused || this.ended || this.idle) return;
+    if (this.buildMode) {
+      const lane = Phaser.Math.Clamp(Math.round((p.y - (this.gy - 64)) / 32), 0, 2);
+      const x = Phaser.Math.Clamp(p.x, this.gx + 55, this.w - 50);
+      if (this.placeStructure(this.buildMode, lane, x)) {
+        this.setBuildMode(null);
+      }
+      return;
+    }
     if (p.x > this.gx - 10) {
       this.aiming = true;
       this.aimX = p.x;
@@ -433,6 +467,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onPointerMove(p: Phaser.Input.Pointer): void {
+    if (this.buildMode && this.ghost) {
+      const lane = Phaser.Math.Clamp(Math.round((p.y - (this.gy - 64)) / 32), 0, 2);
+      const x = Phaser.Math.Clamp(p.x, this.gx + 55, this.w - 50);
+      this.ghost.setPosition(x, this.laneY(lane));
+      this.ghost.setVisible(true);
+      return;
+    }
     this.aimX = p.x;
     this.aimY = p.y;
   }
@@ -605,18 +646,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   private applyArrowHit(a: ArrowRuntime, m: MonsterRuntime): void {
-    // shield block from flat frontal shots
-    if (m.def.shield && !a.def.explodeRadius && !this.isSteepArrow(a)) {
-      this.burst(m.container.x - 14, m.container.y - 18, 0xcfd6e0, 5, 80);
-      this.floatText(m.container.x - 18, m.container.y - 40, "BLOCKED", 0xcfd6e0);
+    // A frozen shieldbearer lowers its shield; explosive arrows blow through.
+    const shieldUp = m.def.shield && m.effects.freezeT <= 0 && !a.def.explodeRadius;
+    if (shieldUp && !this.isSteepArrow(a)) {
+      // fire arrows still splash and ignite through the shield
+      if (a.def.burn) {
+        m.effects.burnT = Math.max(m.effects.burnT, TUNING.burnDuration);
+        m.effects.burnDps = Math.max(m.effects.burnDps, a.def.burn);
+      }
+      this.burst(m.container.x - 16, m.container.y - 20, 0xcfd6e0, 6, 90);
+      this.floatText(m.container.x - 20, m.container.y - 44, "BLOCKED", 0xcfd6e0);
       return;
     }
     this.damageMonster(m, a.damage, a.crit, a.def);
   }
 
   private isSteepArrow(a: ArrowRuntime): boolean {
-    const ang = Math.atan2(a.vy, a.vx);
-    return Math.abs(ang) > Math.PI / 4.2; // steep descent bypasses shield
+    // a steeply descending arrow (high arc) falls over the top of the shield
+    return Math.atan2(a.vy, a.vx) > Math.PI / 6;
   }
 
   private killArrow(a: ArrowRuntime, silent: boolean): void {
@@ -755,6 +802,7 @@ export class GameScene extends Phaser.Scene {
 
     m.container.destroy();
     m.hpBar.destroy();
+    m.statusGfx.destroy();
   }
 
   private comboMult(): number {
@@ -834,13 +882,35 @@ export class GameScene extends Phaser.Scene {
       if (e.freezeT <= 0) {
         const speed = m.def.speed * (e.slowT > 0 ? e.slowF : 1);
         if (!m.attacking) {
-          const targetX = this.gx;
-          if (m.x > targetX) {
-            m.x -= speed * dt;
-            m.container.x = m.x;
+          // stop at a barricade blocking this lane
+          let barricade: StructureRuntime | null = null;
+          if (m.lane >= 0) {
+            for (const s of this.structures) {
+              if (s.dead || s.def.id !== "barricade" || s.lane !== m.lane) continue;
+              if (s.x < m.x && m.x - s.x < 30) {
+                barricade = s;
+                break;
+              }
+            }
+          }
+          if (barricade) {
+            m.targetBarricade = barricade;
+            barricade.hp -= m.def.damage * dt;
+            this.burst(m.container.x - 8, m.container.y - 20, 0x8a6038, 1, 30);
+            if (barricade.hp <= 0) {
+              this.destroyStructure(barricade);
+              m.targetBarricade = null;
+            }
           } else {
-            m.attacking = true;
-            m.attackTimer = m.def.sapper ? 0 : 0.6;
+            m.targetBarricade = null;
+            const targetX = this.gx;
+            if (m.x > targetX) {
+              m.x -= speed * dt;
+              m.container.x = m.x;
+            } else {
+              m.attacking = true;
+              m.attackTimer = m.def.sapper ? 0 : 0.6;
+            }
           }
         }
       }
@@ -883,6 +953,7 @@ export class GameScene extends Phaser.Scene {
             this.damageWall(m.def.damage);
             m.container.destroy();
             m.hpBar.destroy();
+            m.statusGfx.destroy();
             m.dead = true;
             continue;
           }
@@ -919,12 +990,19 @@ export class GameScene extends Phaser.Scene {
     const g = m.statusGfx;
     g.clear();
     const e = m.effects;
+    const cx = m.container.x;
+    const cy = m.container.y - m.def.radius * 0.5;
     if (e.freezeT > 0) {
-      g.fillStyle(0x9be7ff, 0.35);
-      g.fillCircle(m.container.x, m.container.y - m.def.radius * 0.5, m.def.radius + 6);
+      g.fillStyle(0x9be7ff, 0.4);
+      g.fillCircle(cx, cy, m.def.radius + 7);
+      g.fillStyle(0xdff7ff, 0.95);
+      const r = m.def.radius;
+      g.fillTriangle(cx - r * 0.5, cy - 2, cx - r * 0.1, cy - 2, cx - r * 0.3, cy - 14);
+      g.fillTriangle(cx + r * 0.1, cy - 4, cx + r * 0.5, cy - 4, cx + r * 0.3, cy - 18);
+      g.fillTriangle(cx - r * 0.15, cy + 2, cx + r * 0.2, cy + 2, cx, cy - 10);
     } else if (e.slowT > 0) {
-      g.fillStyle(0xbfe9f2, 0.22);
-      g.fillCircle(m.container.x, m.container.y - m.def.radius * 0.5, m.def.radius + 4);
+      g.fillStyle(0xbfe9f2, 0.24);
+      g.fillCircle(cx, cy, m.def.radius + 4);
     }
   }
 
@@ -941,8 +1019,22 @@ export class GameScene extends Phaser.Scene {
 
   // ---------------- abilities ----------------
   private castFrostNova(): void {
-    this.burst(this.gx, this.gy - 60, PALETTE.ice, 40, 200);
-    this.cameras.main.flash(120, 127, 216, 232);
+    this.cameras.main.flash(160, 127, 216, 232);
+    this.cameras.main.shake(80, 0.04);
+    const ring = this.add.graphics();
+    ring.setDepth(8);
+    ring.lineStyle(5, 0xdff7ff, 1);
+    ring.strokeCircle(this.gx, this.gy - 60, 24);
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      scale: 9,
+      duration: 500,
+      ease: "Cubic.easeOut",
+      onComplete: () => ring.destroy()
+    });
+    this.burst(this.gx, this.gy - 60, PALETTE.ice, 60, 220);
+    this.burst(this.gx, this.gy - 60, 0xdff7ff, 30, 140);
     for (const m of this.monsters) {
       if (m.dead) continue;
       m.effects.freezeT = 3;
@@ -958,10 +1050,18 @@ export class GameScene extends Phaser.Scene {
     }
     const cx = target ? target.x : this.gx + 160;
     const cy = target ? target.y : this.gy;
-    for (let i = 0; i < 22; i++) {
-      this.stormArrows.push({ x: cx + (Math.random() * 240 - 120), y: cy - 30 - Math.random() * 90, t: i * 0.09 });
+    this.cameras.main.shake(60, 0.03);
+    const ring = this.add.graphics();
+    ring.setDepth(2);
+    ring.fillStyle(PALETTE.gold, 0.22);
+    ring.fillCircle(cx, cy - 30, 130);
+    ring.lineStyle(2, PALETTE.gold, 0.85);
+    ring.strokeCircle(cx, cy - 30, 130);
+    this.tweens.add({ targets: ring, alpha: 0, duration: 900, onComplete: () => ring.destroy() });
+    for (let i = 0; i < 26; i++) {
+      this.stormArrows.push({ x: cx + (Math.random() * 260 - 130), y: cy - 30 - Math.random() * 110, t: i * 0.08 });
     }
-    this.burst(cx, cy - 40, PALETTE.gold, 20, 140);
+    this.burst(cx, cy - 40, PALETTE.gold, 24, 160);
   }
 
   private updateStormArrows(dt: number): void {
@@ -988,7 +1088,9 @@ export class GameScene extends Phaser.Scene {
     const x = this.gx + 130;
     const g = this.add.graphics();
     g.setDepth(2);
-    this.flameWalls.push({ x, y0: this.wallTop - 20, y1: this.gy, ttl: 6, g });
+    this.flameWalls.push({ x, y0: this.wallTop - 40, y1: this.gy, ttl: 6, g });
+    this.cameras.main.shake(40, 0.03);
+    this.burst(x, this.gy - 20, PALETTE.ember, 24, 160);
   }
 
   private updateFlameWalls(dt: number): void {
@@ -1018,6 +1120,156 @@ export class GameScene extends Phaser.Scene {
         this.flameWalls.splice(i, 1);
       }
     }
+  }
+
+  // ---------------- defensive structures ----------------
+  public setBuildMode(id: StructureId | null): void {
+    this.buildMode = id;
+    this.clearGhost();
+    if (id) {
+      this.ghost = createStructureVisual(this, id);
+      this.ghost.setDepth(15);
+      this.ghost.setAlpha(0.6);
+      this.ghost.setVisible(false);
+    }
+    this.pushHud();
+  }
+
+  public selectBuild(id: StructureId): void {
+    if (this.buildMode === id) {
+      this.setBuildMode(null);
+      return;
+    }
+    const def = structureById(id);
+    if (this.run.gold < def.cost) {
+      this.toast("Not enough gold!");
+      return;
+    }
+    this.setBuildMode(id);
+  }
+
+  private clearGhost(): void {
+    if (this.ghost) {
+      this.ghost.destroy();
+      this.ghost = null;
+    }
+  }
+
+  private placeStructure(id: StructureId, lane: number, x: number): boolean {
+    const def = structureById(id);
+    if (this.run.gold < def.cost) {
+      this.toast("Not enough gold!");
+      return false;
+    }
+    for (const s of this.structures) {
+      if (!s.dead && s.lane === lane && Math.abs(s.x - x) < 46) {
+        this.toast("Too close to another structure");
+        return false;
+      }
+    }
+    this.run.gold -= def.cost;
+    const visual = createStructureVisual(this, id);
+    const y = this.laneY(lane);
+    visual.setPosition(x, y);
+    const hpBar = this.add.graphics();
+    hpBar.setDepth(4);
+    const s: StructureRuntime = {
+      def,
+      lane,
+      x,
+      y,
+      hp: def.hp,
+      maxHp: def.hp,
+      cooldown: 0,
+      container: visual,
+      hpBar,
+      dead: false
+    };
+    this.structures.push(s);
+    this.burst(x, y - 12, def.color, 8, 80);
+    this.pushHud();
+    return true;
+  }
+
+  private destroyStructure(s: StructureRuntime): void {
+    if (s.dead) return;
+    s.dead = true;
+    this.burst(s.x, s.y - 12, s.def.color, 14, 120);
+    s.container.destroy();
+    s.hpBar.destroy();
+  }
+
+  private drawBolt(x1: number, y1: number, x2: number, y2: number): void {
+    const g = this.add.graphics();
+    g.setDepth(8);
+    g.lineStyle(3, 0xe8d9b0, 1);
+    g.lineBetween(x1, y1, x2, y2);
+    this.tweens.add({ targets: g, alpha: 0, duration: 180, onComplete: () => g.destroy() });
+  }
+
+  private drawStructureHpBar(s: StructureRuntime): void {
+    const g = s.hpBar;
+    g.clear();
+    if (s.hp >= s.maxHp) return;
+    const w = 30;
+    const x = s.x - w / 2;
+    const y = s.y - 40;
+    g.fillStyle(0x1b1f3a, 0.7);
+    g.fillRect(x - 1, y - 1, w + 2, 5);
+    g.fillStyle(0x3a3f52, 1);
+    g.fillRect(x, y, w, 3);
+    g.fillStyle(PALETTE.gold, 1);
+    g.fillRect(x, y, w * Math.max(0, s.hp / s.maxHp), 3);
+  }
+
+  private updateStructures(dt: number): void {
+    for (const s of this.structures) {
+      if (s.dead) continue;
+      s.cooldown -= dt;
+
+      if (s.def.id === "ballista") {
+        if (s.cooldown <= 0) {
+          let best: MonsterRuntime | null = null;
+          let bestD = 620;
+          for (const m of this.monsters) {
+            if (m.dead || m.lane !== s.lane) continue;
+            const d = m.x - s.x;
+            if (d > 0 && d < bestD) {
+              bestD = d;
+              best = m;
+            }
+          }
+          if (best) {
+            s.cooldown = 2.0;
+            this.drawBolt(s.x, s.y - 18, best.container.x, best.container.y - best.def.radius * 0.5);
+            this.burst(best.container.x, best.container.y - best.def.radius * 0.5, 0xd9d9d9, 4, 70);
+            this.damageMonster(best, 30, false, { color: 0xd9d9d9 });
+          }
+        }
+      } else if (s.def.id === "barricade") {
+        for (const m of this.monsters) {
+          if (m.dead || m.lane !== s.lane) continue;
+          if (Math.abs(m.x - s.x) < 34) {
+            m.hp -= 15 * dt;
+            if (Math.random() < 0.3) {
+              this.burst(m.container.x, m.container.y - m.def.radius, 0xd9d9d9, 1, 40);
+            }
+            if (m.hp <= 0) this.killMonster(m);
+          }
+        }
+      } else if (s.def.id === "frostTrap") {
+        for (const m of this.monsters) {
+          if (m.dead || m.lane !== s.lane) continue;
+          if (Math.abs(m.x - s.x) < 44) {
+            m.effects.slowT = Math.max(m.effects.slowT, 0.35);
+            m.effects.slowF = 0.35;
+          }
+        }
+      }
+
+      this.drawStructureHpBar(s);
+    }
+    this.structures = this.structures.filter((s) => !s.dead);
   }
 
   // ---------------- wave / level end ----------------
@@ -1109,11 +1361,18 @@ export class GameScene extends Phaser.Scene {
     }
     for (const fw of this.flameWalls) fw.g.destroy();
     for (const c of this.cleanup) c.p.destroy();
+    for (const s of this.structures) {
+      s.container.destroy();
+      s.hpBar.destroy();
+    }
     this.cleanup = [];
     this.monsters = [];
     this.arrows = [];
     this.flameWalls = [];
     this.stormArrows = [];
+    this.structures = [];
+    this.clearGhost();
+    this.buildMode = null;
     for (const t of this.trajectory) t.destroy();
     this.trajectory = [];
     this.aimLine.clear();
@@ -1150,6 +1409,14 @@ export class GameScene extends Phaser.Scene {
       });
     });
 
+    const structures: HudStructure[] = STRUCTURES.map((def) => ({
+      id: def.id,
+      name: def.name,
+      cost: def.cost,
+      glyph: def.glyph,
+      affordable: this.run.gold >= def.cost
+    }));
+
     const state: HudState = {
       wallHp: Math.max(0, this.run.wallHp),
       wallMax: this.run.wallMax,
@@ -1165,6 +1432,8 @@ export class GameScene extends Phaser.Scene {
       wind: this.wind,
       arrows,
       abilities,
+      structures,
+      buildMode: this.buildMode,
       paused: this.paused
     };
     bus.emit("hud", state);

@@ -10,6 +10,8 @@ import type {
   PerkId,
   RegionDef,
   Spawn,
+  StructureDef,
+  StructureId,
   UpgradeDef,
   UpgradeId
 } from "./types";
@@ -244,6 +246,16 @@ export const UPGRADES: UpgradeDef[] = [
 
 export const ARROW_UPGRADE_COST_BASE = 80;
 export const ARROW_UPGRADE_DMG_STEP = 0.12; // +12% damage per arrow level
+
+export const STRUCTURES: StructureDef[] = [
+  { id: "barricade", name: "Spike Barricade", cost: 25, desc: "Blocks a lane and impales attackers.", hp: 170, color: 0x9a6b3a, glyph: "\uD83E\uDEA4" },
+  { id: "ballista", name: "Ballista", cost: 60, desc: "Auto-fires bolts down its lane.", hp: 60, color: 0x8a93a3, glyph: "\uD83C\uDFAF" },
+  { id: "frostTrap", name: "Frost Trap", cost: 35, desc: "Chills monsters that step on it.", hp: 40, color: 0x7fd8e8, glyph: "\u2744\uFE0F" }
+];
+
+export function structureById(id: StructureId): StructureDef {
+  return STRUCTURES.find((s) => s.id === id)!;
+}
 
 export const REGIONS: RegionDef[] = [
   { name: "Grasslands", from: 1, to: 4 },
