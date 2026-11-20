@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+
+  <title>
+    Piles of Mahjong
+  </title>
+
+  <!--http://www.html5rocks.com/en/mobile/mobifying/-->
+  <meta name="viewport"
+    content="width=device-width,user-scalable=no,initial-scale=1,minimum-scale=1,maximum-scale=1,minimal-ui=true" />
+
+  <!--https://developer.apple.com/library/safari/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html-->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+
+  <!-- force webkit on 360 -->
+  <meta name="renderer" content="webkit" />
+  <meta name="force-rendering" content="webkit" />
+  <!-- force edge on IE -->
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="msapplication-tap-highlight" content="no">
+
+  <!-- force full screen on some browser -->
+  <meta name="full-screen" content="yes" />
+  <meta name="x5-fullscreen" content="true" />
+  <meta name="360-fullscreen" content="true" />
+
+  <!--fix fireball/issues/3568 -->
+  <!--<meta name="browsermode" content="application">-->
+  <meta name="x5-page-mode" content="app">
+
+  <!--<link rel="apple-touch-icon" href=".png" />-->
+  <!--<link rel="apple-touch-icon-precomposed" href=".png" />-->
+
+  <link rel="stylesheet" type="text/css" href="style.f76d1.css" />
+
+
+  <style>
+    body {
+      overflow-x: hidden;
+      overflow-y: hidden;
+    }
+
+    #GameLoadingDiv016 {
+      /* background-color: #084B4A; */
+      background-color: #000000;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    #GameLoadingDiv016_img {
+      width: 75%;
+      margin-bottom: 15px;
+    }
+
+    @keyframes blink {
+      0% {
+        opacity: 0.25;
+      }
+      50% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0.25;
+      }
+    }
+    #loadingLogo {
+      animation: blink 3s infinite ease-in-out;
+      margin-bottom: 30px;
+      width: 100px;
+    }
+  </style>
+
+</head>
+
+<body>
+  <div id="GameDiv" cc_exact_fit_screen="true">
+    <div id="GameLoadingDiv016">
+      <img src="./image/loading.svg" />
+    </div>
+    <div id="Cocos3dGameContainer">
+      <canvas id="GameCanvas" oncontextmenu="event.preventDefault()" tabindex="99"></canvas>
+    </div>
+  </div>
+  
+
+<!-- Polyfills bundle. -->
+
+<script src="src/polyfills.bundle.5adbf.js" charset="utf-8"> </script>
+
+
+<!-- SystemJS support. -->
+<script src="src/system.bundle.543e6.js" charset="utf-8"> </script>
+
+<!-- Import map -->
+<script src="src/import-map.241ec.json" type="systemjs-importmap" charset="utf-8"> </script>
+
+<script>
+    System.import('./index.50e30.js').catch(function(err) { console.error(err); })
+window['wzbResZipList'] = ['assets/wzbResCache0.4c589.zip', 'assets/wzbResCache1.4c589.zip', 'assets/wzbResCache2.4c589.zip', 'assets/wzbResCache3.4c589.zip'];
+
+async function downloadResCache() {
+    async function downloadZip(url) {
+        try {
+            const response = await fetch(url);
+            const buffer = await response.arrayBuffer();
+            return buffer;
+        } catch (e) {
+            error(e.message);
+        }
+    }
+
+    const resZipList = window['wzbResZipList'];
+
+    if (resZipList !== undefined && resZipList.length > 0) {
+        const promises = [];
+        for (let i = 0; i < resZipList.length; i++) {
+            promises.push(downloadZip(resZipList[i]));
+        }
+        window['wzbDownloadResCache'] = promises;
+        return;
+    } else {
+        error("[WebZipBundle].downloadResCache: resZipList is empty");
+    }
+}
+
+downloadResCache();
+</script>
+
+    <script type="text/javascript">
+      (function () {
+        // init game complete
+        window._onAppComplete = function () {
+          var loadingdiv = document.getElementById('GameLoadingDiv016')
+          if (loadingdiv) {
+            loadingdiv.style.display = 'none';
+            loadingdiv.parentNode.removeChild(loadingdiv);
+          }
+        }
+      })();
+    </script>
+</body>
+
+</html>
